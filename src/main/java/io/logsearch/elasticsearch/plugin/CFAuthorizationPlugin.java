@@ -1,5 +1,6 @@
 package io.logsearch.elasticsearch.plugin;
 
+import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
@@ -44,19 +45,19 @@ public class CFAuthorizationPlugin extends Plugin {
     }
 
     @Override
-    public Settings additionalSettings() {
+    public Settings additionalSettings() {;
         return Settings.EMPTY;
     }
 
-    // public void onModule(ActionModule actionModule) {
-    //     actionModule.registerFilter(DLSActionFilter.class);
-    // }
+     public void onModule(ActionModule actionModule) {
+         actionModule.registerFilter(CFAuhorizationActionFilter.class);
+     }
 
     public void onModule(RepositoriesModule repositoriesModule) {
     }
 
     /**
-     * Module decalaring some example configuration and a _cat action that uses
+     * Module declaring some example configuration and a _cat action that uses
      * it.
      */
     public static class ConfiguredExampleModule extends AbstractModule {
