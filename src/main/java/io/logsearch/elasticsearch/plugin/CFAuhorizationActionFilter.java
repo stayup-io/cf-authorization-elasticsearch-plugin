@@ -2,14 +2,11 @@ package io.logsearch.elasticsearch.plugin;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Iterator;
-import java.util.Map;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -43,18 +40,7 @@ public class CFAuhorizationActionFilter extends AbstractComponent implements Act
 	@Override
 	public void apply(String action, ActionRequest request,	ActionListener listener, ActionFilterChain chain) {
         
-		log.debug("request {} headers {}", action, request.getHeaders()); 
-		
-		if (request.hasHeader("X-Authorized-SpaceIds")) {
-			if (request instanceof MultiSearchRequest) {
-				String[] authorizedSpaceIds = ((String) request.getHeader("X-Authorized-SpaceIds")).split(",[ ]*");
-				TermsQueryBuilder spaceFilter = new TermsQueryBuilder("@source.space.id", authorizedSpaceIds);
-				for (SearchRequest search : ((MultiSearchRequest)request).requests()) {
-					log.debug("Appending space filter: {} to search on indices: {}", spaceFilter, search.indices());
-					search.extraSource(SearchSourceBuilder.searchSource().query(spaceFilter));
-				}
-			}
-		}
+		log.debug("request.action: {} auth headers: {}", action, request.getHeaders()); 
 		
 		if (request.hasHeader("X-Authorized-Orgs")) {
 			if (!isAdminUser(request)) {
@@ -76,8 +62,37 @@ public class CFAuhorizationActionFilter extends AbstractComponent implements Act
 			}
 		}
 		
+		if (request.hasHeader("X-Authorized-SpaceIds")) {
+			
+			String[] authorizedSpaceIds = ((String) request.getHeader("X-Authorized-SpaceIds")).split(",[ ]*");
+			TermsQueryBuilder spaceFilter = new TermsQueryBuilder("@source.space.id", authorizedSpaceIds);
+
+			if (request instanceof MultiSearchRequest) {
+				for (SearchRequest search : ((MultiSearchRequest)request).requests()) {
+					if (isSearchingAppLogsIndex(search)) {
+						log.debug("Appending space filter: {} to SearchRequest on indices: {}", spaceFilter, search.indices());
+						search.extraSource(SearchSourceBuilder.searchSource().query(spaceFilter));
+					}
+				}
+			}
+			if (request instanceof SearchRequest) {
+				if (isSearchingAppLogsIndex((SearchRequest)request)) {
+					log.debug("Appending space filter: {} to GetRequest on indices: {}", spaceFilter, ((SearchRequest)request).indices());
+					((SearchRequest)request).extraSource(SearchSourceBuilder.searchSource().query(spaceFilter));
+				}
+			}
+		}
+		
 		chain.proceed(action, request, listener);
 		
+	}
+
+	private boolean isSearchingAppLogsIndex(IndicesRequest searchRequest) {
+		for (String index: searchRequest.indices()) {
+			if (index.startsWith("logs-app"))
+				return true;
+		}
+		return false;
 	}
 
 	private Boolean isRestrictedIndex(String index) {
